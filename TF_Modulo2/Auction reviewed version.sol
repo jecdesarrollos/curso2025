@@ -1,7 +1,3 @@
-/**
- *Submitted for verification at Etherscan.io on 2025-06-08
-*/
-
 // SPDX-License-Identifier: MIT
 pragma solidity ^0.8.0;
 
@@ -12,8 +8,6 @@ pragma solidity ^0.8.0;
  * It includes functionalities to manage the auction's state, bidder deposits,
  * time extensions for late bids, and fund distribution (winner's bid, refunds, commissions).
  * The final fund distribution is handled by the owner as a specific project requirement.
- * @author Jorge Enrique Cabrera [Trabajo Practico Modulo 2 TALENTO TECH PM]
- * @custom:github https://github.com/jecdesarrollos/curso2025
  */
 
 contract Auction {
@@ -28,13 +22,13 @@ contract Auction {
      * @dev Original duration of the auction in seconds.
      * Once the auction is activated, this time is added to `auctionStartTime` to define `auctionEndTime`.
      */
-    uint256 private constant INITIAL_AUCTION_DURATION = 172800; // 60*60*24*2 = 48 horas
+    uint256 private constant INITIAL_AUCTION_DURATION = 172800; // 60*60*24*2 = 48 hours
 
     /**
      * @dev Time in seconds by which the auction is extended if a bid is received
      * very close to `auctionEndTime`; in this case, the same proposed extension time is used.
      */
-    uint256 public constant AUCTION_EXTENSION_TIME = 600; // 60*10 = 10 minutos
+    uint256 public constant AUCTION_EXTENSION_TIME = 600; // 60*10 = 10 minutes
 
     /**
      * @dev Commission percentage deducted from the deposit of non-winning bidders
@@ -161,7 +155,7 @@ contract Auction {
      * This modifier executes beforehand.
      */
     modifier onlyOwner() {
-        require(msg.sender == owner, "Not the owner.");
+        require(msg.sender == owner, "Not the owner");
         _;
     }
 
@@ -202,18 +196,6 @@ contract Auction {
      * @param reason Description.
      */
     event AuctionBidAccepted(
-        address indexed bidder,
-        uint256 amount,
-        string reason
-    );
-
-    /**
-     * @dev Event emitted when a bid is rejected for not meeting the requirements.
-     * @param bidder address of the bidder who attempted the bid.
-     * @param amount Amount of the attempted bid.
-     * @param reason Reason for rejection.
-     */
-    event AuctionBidRejected(
         address indexed bidder,
         uint256 amount,
         string reason
@@ -297,7 +279,7 @@ contract Auction {
      * @param owner The address of the owner who initiated the withdrawal.
      * @param amount The total amount of Ether withdrawn from the contract's balance.
      */
-    event ContractBalanceWithdrawn(address indexed owner, uint256 amount);
+    event EmergencyFundsWithdrawn(address indexed owner, uint256 amount);
 
     /**
      * @dev Constructor of the contract.
@@ -318,7 +300,7 @@ contract Auction {
     function startAuction() external onlyOwner {
         require(
             currentAuctionState == AuctionState.Pending,
-            "Auction started."
+            "Auction already active"
         );
         currentAuctionState = AuctionState.Active;
         auctionStartTime = block.timestamp;
@@ -328,7 +310,7 @@ contract Auction {
             msg.sender,
             auctionStartTime,
             INITIAL_AUCTION_DURATION,
-            "Auction started."
+            "Auction started"
         );
     }
 
@@ -361,50 +343,29 @@ contract Auction {
      * @param _amount Bid amount.
      */
     function placeBid(uint256 _amount) external payable updateAuctionState {
+        // --- 1. CHECKS / REQUIRES (Fail Early, Fail Fast) ---
+        // Combined validation for clarity and efficiency as per professor's feedback
+
         // Validation 1: Owner cannot participate
-        if (msg.sender == owner) {
-            emit AuctionBidRejected(
-                msg.sender,
-                _amount,
-                "Not allowed (owner)."
-            );
-            revert("Not allowed (owner).");
-        }
+        require(msg.sender != owner, "Not allowed (owner)");
 
-        // Validation 2: Auction must to be active
-        if (currentAuctionState != AuctionState.Active) {
-            emit AuctionBidRejected(
-                msg.sender,
-                _amount,
-                "Auction inactive."
-            );
-            revert("Auction inactive.");
-        }
+        // Validation 2: Auction must be active
+        require(currentAuctionState == AuctionState.Active, "Auction inactive");
 
-        // Calculate the minimum for the next bid
+        // Calculate the minimum for the next bid *after* initial state checks
         uint256 requiredMinBid = getNextMinimumBidAmount();
 
         // Validation 3: Bid must meet the minimum requirement
-        if (_amount < requiredMinBid) {
-            emit AuctionBidRejected(
-                msg.sender,
-                _amount,
-                "Bid too low."
-            );
-            revert("Bid too low.");
-        }
+        require(_amount >= requiredMinBid, "Bid too low");
 
         // Validation 4: Sent Ether must be sufficient for the bid
-        if (msg.value < _amount) {
-            emit AuctionBidRejected(
-                msg.sender,
-                _amount,
-                "Deposit too low."
-            );
-            revert("Deposit too low.");
-        }
+        require(msg.value >= _amount, "Deposit too low");
+
+        // --- 2. EFFECTS (State Changes) ---
+        // All state modifications happen after all checks pass.
 
         // Add bidder to allBidderAddresses if it's their first bid
+        // Declare variables outside the loop if this pattern were inside a loop
         if (!hasBidderAddressBeenRecorded[msg.sender]) {
             allBidderAddresses.push(msg.sender);
             hasBidderAddressBeenRecorded[msg.sender] = true;
@@ -421,7 +382,7 @@ contract Auction {
             emit AuctionEndTimeExtended(
                 msg.sender,
                 _amount,
-                "Auction end extended.",
+                "Auction end extended", // Shortened string
                 AUCTION_EXTENSION_TIME
             );
         }
@@ -430,7 +391,7 @@ contract Auction {
         highestBid = _amount;
         currentWinner = msg.sender;
 
-        // Record the bid in history
+        // Record the bid in history (for didactic purposes, also an effect)
         bidsHistory.push(
             AuctionBid({
                 bidder: msg.sender,
@@ -439,12 +400,17 @@ contract Auction {
             })
         );
 
-        // Emit bid accepted event
+        // --- 3. INTERACTIONS (Events & External Calls) ---
+        // Emit bid accepted event after all state changes are complete
         emit AuctionBidAccepted(
             msg.sender,
             _amount,
-            "Bid accepted."
+            "Bid accepted" // Shortened string
         );
+        // Note: The `AuctionBidRejected` events are removed from here because `require`
+        // statements automatically revert and stop execution if conditions aren't met.
+        // Emitting a "rejected" event would only make sense if the function didn't revert,
+        // which goes against the "fail early" principle for invalid operations.
     }
 
     /**
@@ -463,7 +429,7 @@ contract Auction {
      * It is `Pending` until `startAuction` is called by the `owner`.
      * @return AuctionState The current state of the auction (Pending, Active, Ended, Finalized).
      */
-     
+
     function getCurrentAuctionState() external view returns (AuctionState) {
         return currentAuctionState;
     }
@@ -483,83 +449,67 @@ contract Auction {
         return (currentWinner, highestBid);
     }
 
+    /**
+     * @notice Allows participants to withdraw their *entire* excess deposit.
+     * @dev A bidder can withdraw their full excess deposit if the auction is `Active`.
+     * The excess is the total amount of Ether deposited by the bidder beyond their `lastBidAmount`.
+     * Once the auction ends, fund management is handled by the owner.
+     */
+    function withdrawExcessDeposit() public updateAuctionState {
+        require(currentAuctionState == AuctionState.Active, "Auction inactive");
+        Bidder storage bidder = bidders[msg.sender];
 
+        require(bidder.bidderAddress != address(0), "Not a bidder");
+        require(bidder.totalDeposited > bidder.lastBidAmount, "No excess");
 
-     
-/**
+        uint256 excessAmount = bidder.totalDeposited - bidder.lastBidAmount;
+
+        bidder.totalDeposited = bidder.lastBidAmount;
+
+        // Perform the transfer of the deposit to the bidder.
+        (bool success, ) = payable(msg.sender).call{value: excessAmount}("");
+        require(success, "Withdrawal failed");
+
+        // Emit an event to record the excess withdrawal.
+        emit ExcessDepositWithdrawn(msg.sender, excessAmount);
+    }
+
+    /**
      * @notice Allows participants to withdraw partial excess deposits.
      * @dev A bidder can partial withdraw excess if:
      * - The auction is `Active`: withdraws the difference between their `totalDeposited` and their `lastBidAmount`.
      * Once the auction ends, the owner manages all remaining fund transfers.
      * Partial withdrawal
      */
-    function withdrawPartialExcessDeposit(uint256 _amountToWithdraw) public updateAuctionState {
-        require(
-            currentAuctionState == AuctionState.Active,
-            "Auction inactive"
-        );
+    function withdrawPartialExcessDeposit(uint256 _amountToWithdraw)
+        public
+        updateAuctionState
+    {
+        require(currentAuctionState == AuctionState.Active, "Auction inactive");
 
         Bidder storage bidder = bidders[msg.sender];
 
+        require(bidder.bidderAddress != address(0), "No bids placed");
+
+        require(bidder.totalDeposited > bidder.lastBidAmount, "No excess");
+
         require(
-            bidder.bidderAddress != address(0),
-            "No bids placed"
+            _amountToWithdraw <=
+                (bidder.totalDeposited - bidder.lastBidAmount) &&
+                _amountToWithdraw > 0,
+            "Limit exceeded"
         );
-        
-        require(
-            bidder.totalDeposited > bidder.lastBidAmount,
-            "No excess"
-        );
-        
-        require(_amountToWithdraw <= (bidder.totalDeposited-bidder.lastBidAmount) && _amountToWithdraw > 0,
-            "Limit exceeded");
-        
-        bidder.totalDeposited = bidder.totalDeposited - _amountToWithdraw; // After partial withdrawing excess
+
+        bidder.totalDeposited = bidder.totalDeposited - _amountToWithdraw;
 
         // Perform the transfer of the deposit to the bidder.
-        (bool success, ) = payable(msg.sender).call{value: _amountToWithdraw}("");
-        require(success, "Withdrawal failed.");
+        (bool success, ) = payable(msg.sender).call{value: _amountToWithdraw}(
+            ""
+        );
+        require(success, "Withdrawal failed");
 
         // Emit an event to record the partial excess withdrawal.
         emit ExcessDepositWithdrawn(msg.sender, _amountToWithdraw);
-    }
-
-
-
-    /**
-     * @notice Allows participants to withdraw any excess deposits.
-     * @dev A bidder can withdraw excess if:
-     * - The auction is `Active`: withdraws the difference between their `totalDeposited` and their `lastBidAmount`.
-     * Once the auction ends, the owner manages all remaining fund transfers.
-     * Partial withdrawal
-     */
-    function withdrawExcessDeposit() public updateAuctionState {
-        require(
-            currentAuctionState == AuctionState.Active,
-            "Auction inactive"
-        );
-        Bidder storage bidder = bidders[msg.sender];
-
-        require(
-            bidder.bidderAddress != address(0),
-            "Not a bidder"
-        );
-        require(
-            bidder.totalDeposited > bidder.lastBidAmount,
-            "No excess"
-        );
-
-
-        uint256 excessAmount = bidder.totalDeposited - bidder.lastBidAmount;
-
-        bidder.totalDeposited = bidder.lastBidAmount; // After withdrawing excess, `totalDeposited` remains at `lastBidAmount`.
-
-        // Perform the transfer of the deposit to the bidder.
-        (bool success, ) = payable(msg.sender).call{value: excessAmount}("");
-        require(success, "Refund failed");
-
-        // Emit an event to record the excess withdrawal.
-        emit ExcessDepositWithdrawn(msg.sender, excessAmount);
     }
 
     /// @notice Finalizes the auction by the owner, and funds and commissions are processed.
@@ -567,14 +517,11 @@ contract Auction {
     /// Once ended, the owner can withdraw commissions and the winner's deposit.
     /// The owner can also distribute refunds to non-winners and the winner's excess deposits.
     function finalizeAuction() public onlyOwner updateAuctionState {
-        require(
-            currentAuctionState == AuctionState.Ended,
-            "Auction not ended"
-        );
+        require(currentAuctionState == AuctionState.Ended, "Auction not ended");
 
         require(
             currentAuctionState != AuctionState.Finalized,
-            "Auction finalized."
+            "Auction finalized"
         );
 
         currentAuctionState = AuctionState.Finalized;
@@ -600,39 +547,38 @@ contract Auction {
         onlyOwner
         updateAuctionState
     {
-        require(
-            currentAuctionState == AuctionState.Finalized,
-            "Not finalized"
-        );
-        uint256 commissionsFundsDistributed = 0;
-        for (uint256 i = 0; i < allBidderAddresses.length; i++) {
-            address payable currentBidderAddress = payable(
-                allBidderAddresses[i]
-            );
-            Bidder storage bidder = bidders[currentBidderAddress];
+        require(currentAuctionState == AuctionState.Finalized, "Not finalized");
 
-            // Only process if the bidder still has funds (i.e., not yet refunded/processed)
-            // and it's not the winner who has already had their winning bid withdrawn.
+        uint256 numBidders = allBidderAddresses.length;
+        uint256 accumulatedCommissionsThisCall = 0; // Local variable to accumulate
+
+        address payable currentBidderAddress;
+        Bidder storage bidder;
+        uint256 amountToProcess;
+        uint256 commissionAmount;
+        uint256 amountToSend;
+
+        for (uint256 i = 0; i < numBidders; i++) {
+            currentBidderAddress = payable(allBidderAddresses[i]);
+            bidder = bidders[currentBidderAddress];
+
             if (bidder.totalDeposited > 0) {
-                uint256 amountToProcess = bidder.totalDeposited;
-                uint256 commissionAmount = (amountToProcess *
-                    COMMISSION_PERCENTAGE) / 100;
-                uint256 amountToSend = amountToProcess - commissionAmount;
+                amountToProcess = bidder.totalDeposited;
+                commissionAmount =
+                    (amountToProcess * COMMISSION_PERCENTAGE) /
+                    100;
+                amountToSend = amountToProcess - commissionAmount;
 
-                totalCommissionsCollected += commissionAmount;
-                commissionsFundsDistributed += commissionAmount;
-                bidder.totalDeposited = 0; // Reset balance to prevent double distribution
-                bidder.lastBidAmount = 0; // Also reset lastBidAmount for cleanliness
+                accumulatedCommissionsThisCall += commissionAmount;
+
+                bidder.totalDeposited = 0;
+                bidder.lastBidAmount = 0;
 
                 (bool success, ) = currentBidderAddress.call{
                     value: amountToSend
                 }("");
-                require(
-                    success,
-                    "Transfer failed"
-                );
+                require(success, "Transfer failed");
 
-                // Emit refund/distribution event
                 emit RefundIssued(
                     currentBidderAddress,
                     amountToSend,
@@ -640,9 +586,12 @@ contract Auction {
                 );
             }
         }
+
+        totalCommissionsCollected += accumulatedCommissionsThisCall; // ONLY ONE WRITE HERE
+
         emit FundsDistributed(
             msg.sender,
-            commissionsFundsDistributed,
+            accumulatedCommissionsThisCall,
             block.timestamp
         );
     }
@@ -673,29 +622,17 @@ contract Auction {
      * to be distributed later by `ownerDistributeAllRemainingFunds`.
      */
     function winnerFundsWithrawn() public onlyOwner {
-        require(
-            !flagWinnerFundsWithdrawn,
-            "Funds withdrawn"
-        );
-        require(
-            currentWinner != address(0),
-            "No winner"
-        );
-        require(
-            currentAuctionState == AuctionState.Finalized,
-            "Not ended"
-        );
+        require(!flagWinnerFundsWithdrawn, "Funds withdrawn");
+        require(currentWinner != address(0), "No winner");
+        require(currentAuctionState == AuctionState.Finalized, "Not ended");
 
         uint256 amountToTransfer = highestBid;
-        require(
-            amountToTransfer > 0,
-            "Zero amount"
-        );
+        require(amountToTransfer > 0, "Zero amount");
         // Reduce the winner's balance by the winning bid amount.
         // Any remaining amount in totalDeposited will be the excess.
         bidders[currentWinner].totalDeposited -= amountToTransfer;
         (bool success, ) = payable(owner).call{value: amountToTransfer}("");
-        require(success, "Failed withdrawal");
+        require(success, "Withdrawal failed");
         flagWinnerFundsWithdrawn = true;
 
         // Event emitted
@@ -713,10 +650,7 @@ contract Auction {
             "Auction finalized"
         );
         // Optionally, you might want to prevent finalizing if it's still Pending (hasn't started)
-        require(
-            currentAuctionState != AuctionState.Pending,
-            "Auction pending"
-        );
+        require(currentAuctionState != AuctionState.Pending, "Auction pending");
 
         // Directly set the auction state to Finalized
         currentAuctionState = AuctionState.Finalized;
@@ -732,21 +666,18 @@ contract Auction {
      * This function is a safety measure to recover any funds that might be held by the contract
      * beyond specific amounts (winning bid, commissions) and ensures the owner can empty the contract.
      */
-    function ownerWithdrawContractBalance() external onlyOwner {
+    function emergencyWithdrawEther() external onlyOwner {
         // Get the current balance of the contract.
         uint256 contractBalance = address(this).balance;
 
         // Require that there is a balance to withdraw.
-        require(
-            contractBalance > 0,
-            "Zero balance"
-        );
+        require(contractBalance > 0, "Zero balance");
 
         // Perform the transfer to the owner.
         (bool success, ) = payable(owner).call{value: contractBalance}("");
         require(success, "Withdrawal failed");
 
         // Emit the event to record the withdrawal.
-        emit ContractBalanceWithdrawn(owner, contractBalance);
+        emit EmergencyFundsWithdrawn(owner, contractBalance);
     }
 }
