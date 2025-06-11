@@ -11,12 +11,50 @@ Debes crear un smart contract en Sepolia desde tu address en Ethereum:
 El smart contract debe estar publicado y verificado.
 La address del smart contract debe quedar registrada aquí:
 
-Smart Contract Address
+Smart Contract Address 
 
-0x22C818F0b72C0730794e524795cB8d3D62f8489c
+Original: 0x22C818F0b72C0730794e524795cB8d3D62f8489c
+Reviewed Practical Work Module 2: 0x80d56c66973f7bC34fa19f404D990BAa861A0243
 
-Published and verified on Sepolia Testnet
+Both Published and verified on Sepolia Testnet
 
+*************************
+Reviewd Practical Work Module 2
+
+About the changes in the reviewed Practical Work Module 2:
+I have gone through each of the suggestions and made some adjustments. 
+
+Here is a quick summary of the changes:
+
+Partial Withdrawals
+Initially, bidders could only withdraw all of their excess deposit. 
+I have updated the 'withdrawPartialExcessDeposit' function so users can now take out precisely the amount they need. 
+But, as a dedicated function for total refunds was mandatory, I've ensured 'withdrawExcessDeposit' is also present to handle full excess withdrawals.
+
+Short/Long Strings
+I have thoroughly reviewed every require and emit message, making them super concise. 
+
+Requires at the Top
+I have refactored the placeBid function and others (or checked them) to ensure all validation checks are at the top. 
+
+State variables - Read & Writes in loops
+I have adjusted the 'ownerDistributeAllRemainingFunds' function (where most of the looping happens)
+It read only one time the array length (e.g., numBidders) before the loop starts.
+About "dirty variables": I declared local variables (like currentBidderAddress or amountToProcess) outside the loop and simply reused them inside, instead of re-declaring them in each iteration. 
+In some state variable like totalCommissionsCollected, I accumulate the total in a local variable throughout the loop and only write the final sum back to the state variable once after the loop completes.
+
+5. Emergency ETH Recovery Function
+Is the function 'ownerWithdrawContractBalance' and I renamed it to 'emergencyWithdrawEther' and added a specific EmergencyFundsWithdrawn event. Now, it's more explicit that this function serves as a last resort to recover any potentially stuck funds.
+
+6. Comprehensive Documentation & English Consistency
+Finally, I have thoroughly reviewed and polished the contract's documentation and ensured full English consistency:
+Refining the NatSpec comments (@dev, @notice) for functions like withdrawPartialExcessDeposit, withdrawExcessDeposit, and ownerDistributeAllRemainingFunds to be more precise and clear about their purpose, parameters, and returns.
+All remaining Spanish comments have been translated into English.
+
+End of the reviewed new version of Auction.sol 
+
+*************************
+Original Practical Work Module 2
 Considerations for the practical assignment:
 block.timestamp usage: For the purpose of this practical assignment, block.timestamp was used. However, it's generally advised against in production environments as it can be subject to miner manipulation.
 
